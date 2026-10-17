@@ -353,11 +353,19 @@ Referencia: [Clustering and Khepri, RabbitMQ 4.2](https://www.rabbitmq.com/docs/
 ## 11. Evidencias sugeridas
 
 Prueba	Asunto	Descripción	Correo
-```Procesamiento correcto	Luminaria apagada en la plaza	El poste junto al acceso principal no enciende durante la noche.	vecino@example.test```
-```Error y reintentos	Luminaria con falla intermitente	La luminaria se apaga repetidamente y deja el sector sin iluminación.	error@barriodigital.test```
-```Procesamiento correcto después del error	Luminaria dañada frente a la sede	La luminaria frente a la sede vecinal permanece apagada.	otrovecino@example.test```
+```powershell
+Procesamiento correcto	Luminaria apagada en la plaza	El poste junto al acceso principal no enciende durante la noche.	vecino@example.test
+```
+```powershell
+Error y reintentos	Luminaria con falla intermitente	La luminaria se apaga repetidamente y deja el sector sin iluminación.	error@barriodigital.test
+```
+```powershell
+Procesamiento correcto después del error	Luminaria dañada frente a la sede	La luminaria frente a la sede vecinal permanece apagada.	otrovecino@example.test
+```
 
 
 Selecciona un tipo de trámite activo que corresponda a los ejemplos.
 Antes de comenzar, abre los registros:
-```docker compose logs -f --tail=10 requests notify```
+```powershell
+docker compose logs -f --tail=10 requests notify
+```
