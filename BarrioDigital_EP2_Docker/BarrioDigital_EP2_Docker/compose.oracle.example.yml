@@ -1,0 +1,21 @@
+# Plantilla para la siguiente etapa. No se utiliza en el arranque normal.
+# Crear previamente tablas en Oracle y configurar TLS/wallet según la cuenta.
+services:
+  catalog:
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle
+      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
+      ORACLE_USER: ${ORACLE_CATALOG_USER:?Configura el esquema}
+      ORACLE_PASSWORD: ${ORACLE_CATALOG_PASSWORD:?Configura la contraseña}
+  requests:
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle
+      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
+      ORACLE_USER: ${ORACLE_REQUESTS_USER:?Configura el esquema}
+      ORACLE_PASSWORD: ${ORACLE_REQUESTS_PASSWORD:?Configura la contraseña}
+  notify:
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle
+      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
+      ORACLE_USER: ${ORACLE_NOTIFY_USER:?Configura el esquema}
+      ORACLE_PASSWORD: ${ORACLE_NOTIFY_PASSWORD:?Configura la contraseña}

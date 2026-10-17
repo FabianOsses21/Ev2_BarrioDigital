@@ -1,0 +1,94 @@
+<section class="landing">
+  <div class="welcome">
+    <span class="eyebrow">Tu comunidad, más conectada</span>
+
+    <h1>Bienvenido a BarrioDigital</h1>
+
+    <p class="intro">
+      Un espacio para ingresar solicitudes, seguir tus trámites
+      y acceder a los servicios de tu comunidad.
+    </p>
+
+    @if (auth.demo && !auth.isLoggedIn()) {
+      <p class="access-note">Modo de pruebas local. Estas cuentas son simuladas.</p>
+      <div class="landing-actions">
+        <button (click)="auth.demoLogin('Vecino')">Entrar como vecino</button>
+        <button (click)="auth.demoLogin('Funcionario')">Entrar como funcionario</button>
+        <button (click)="auth.demoLogin('Admin')">Entrar como administrador</button>
+      </div>
+    } @else if (auth.isLoggedIn()) {
+      <p class="session">
+        Sesión iniciada como <strong>{{ auth.username }}</strong>.
+      </p>
+
+      @if (auth.roles.length === 0) {
+        <div class="registration-info" role="status">
+          <h2>Acceso pendiente de habilitación</h2>
+
+          <p>
+            Tu cuenta está autenticada. Un administrador debe asignarte
+            el rol Vecino para que puedas crear y consultar trámites.
+          </p>
+        </div>
+      }
+
+      <div class="landing-actions">
+        @if (auth.roles.length > 0) {
+          <a class="primary-action" routerLink="/dashboard">
+            Ir a mi panel
+          </a>
+        }
+
+        <button
+          type="button"
+          class="secondary-action"
+          (click)="logout()"
+        >
+          Salir
+        </button>
+      </div>
+    } @else {
+      <div class="landing-actions">
+        <button
+          type="button"
+          class="primary-action"
+          (click)="login()"
+        >
+          Ingresar
+        </button>
+
+        <button
+          type="button"
+          class="secondary-action"
+          (click)="registrar()"
+        >
+          Registrarme
+        </button>
+      </div>
+
+      <p class="access-note">
+        Ingresa con una cuenta habilitada para BarrioDigital.
+      </p>
+    }
+  </div>
+
+  <div class="features">
+    <article>
+      <span class="feature-number">01</span>
+      <h2>Ingresa solicitudes</h2>
+      <p>Describe lo que necesitas y selecciona el tipo de trámite.</p>
+    </article>
+
+    <article>
+      <span class="feature-number">02</span>
+      <h2>Consulta el avance</h2>
+      <p>Revisa el estado de tus solicitudes desde tu panel.</p>
+    </article>
+
+    <article>
+      <span class="feature-number">03</span>
+      <h2>Conoce los servicios</h2>
+      <p>Encuentra una forma sencilla de gestionar tus trámites.</p>
+    </article>
+  </div>
+</section>

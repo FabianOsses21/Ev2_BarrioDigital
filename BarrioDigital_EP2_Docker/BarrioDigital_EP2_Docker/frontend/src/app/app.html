@@ -1,0 +1,64 @@
+@if (auth.isLoggedIn()) {
+  <header class="topbar">
+    <a class="brand" routerLink="/">BarrioDigital</a>
+
+    <nav aria-label="Navegación principal">
+            <a
+        routerLink="/"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+      >
+        Inicio
+      </a>
+      <a
+        routerLink="/dashboard"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+      >
+        Dashboard
+      </a>
+
+      @if (auth.puedeCrear) {
+        <a
+          routerLink="/requests"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+        >
+          Trámites
+        </a>
+      }
+
+      @if (auth.puedeVerCatalogo) {
+        <a
+          routerLink="/catalog"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+        >
+          Catálogo
+        </a>
+      }
+    </nav>
+
+    <div class="user-menu">
+      <div>
+        <strong>{{ auth.username }}</strong>
+        <small>{{ auth.roles.join(', ') || 'Sin rol asignado' }}</small>
+      </div>
+
+      <button type="button" class="secondary" (click)="logout()">
+        Salir
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    @if (auth.demo) {
+      <div class="demo-banner">Modo de pruebas local · cuentas simuladas</div>
+    }
+
+    <router-outlet></router-outlet>
+  </main>
+} @else {
+  <router-outlet></router-outlet>
+}

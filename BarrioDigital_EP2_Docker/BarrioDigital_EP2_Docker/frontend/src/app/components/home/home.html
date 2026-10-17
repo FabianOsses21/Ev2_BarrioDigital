@@ -1,0 +1,79 @@
+<div class="home-container">
+
+  <h1>Prueba de Endpoints</h1>
+
+  <p>
+    Usuario:
+    <strong>{{ username }}</strong>
+  </p>
+
+  <hr>
+
+
+  <h2>Endpoint público</h2>
+
+  <p>
+    GET /api/public
+  </p>
+
+  <button
+    type="button"
+    (click)="probarPublico()">
+
+    Probar endpoint público
+
+  </button>
+
+  @if (mensajePublico) {
+
+    <p>
+      <strong>Respuesta:</strong>
+      {{ mensajePublico }}
+    </p>
+
+  }
+
+
+  <hr>
+
+
+  <h2>Endpoint protegido</h2>
+
+  <p>
+    GET /api/ordenes
+  </p>
+
+  <p>
+    Requiere scope:
+    <strong>OT.Create</strong>
+  </p>
+
+  <button
+    type="button"
+    (click)="probarProtegido()">
+
+    Probar endpoint protegido
+
+  </button>
+
+  @if (mensajeProtegido) {
+
+    <p>
+      <strong>Respuesta:</strong>
+      {{ mensajeProtegido }}
+    </p>
+
+  }
+
+
+  <hr>
+
+  <button
+    type="button"
+    (click)="logout()">
+
+    Cerrar sesión
+
+  </button>
+
+</div>

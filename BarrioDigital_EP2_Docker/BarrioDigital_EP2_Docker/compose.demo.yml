@@ -1,0 +1,8 @@
+# Se usa junto a compose.yml. Solo laboratorio local; las cabeceras demo no autentican personas.
+services:
+  catalog: {environment: {AUTH_MODE: demo}}
+  requests: {environment: {AUTH_MODE: demo}}
+  notify: {environment: {AUTH_MODE: demo}}
+  rabbitadmin: {environment: {AUTH_MODE: demo}}
+  bff: {environment: {AUTH_MODE: demo}}
+  frontend: {environment: {AUTH_MODE: demo}}

@@ -1,0 +1,7 @@
+window.__BD_CONFIG__ = {
+  "authMode": "${AUTH_MODE}",
+  "apiUrl": "${PUBLIC_API_URL}",
+  "clientId": "${AZURE_SPA_CLIENT_ID}",
+  "tenantId": "${AZURE_TENANT_ID}",
+  "backendScope": "${AZURE_BACKEND_SCOPE}"
+};

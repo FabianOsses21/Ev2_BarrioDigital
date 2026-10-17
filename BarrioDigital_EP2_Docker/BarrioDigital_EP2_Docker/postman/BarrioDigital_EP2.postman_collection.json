@@ -1,0 +1,702 @@
+{
+  "info": {
+    "name": "BarrioDigital EP2 Docker",
+    "description": "Ejecutar manualmente según docs/PRUEBA_EP2.md. Entra requiere access token de Admin. Demo solo en Compose demo. Los pasos de notificación requieren esperar el procesamiento asíncrono.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "00 BFF público",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/public"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Catálogo",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/catalog"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const list=pm.response.json(); if(list.length)pm.environment.set(\"tipoId\",list[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Crear trámite correcto",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/requests",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipoId\": \"{{tipoId}}\",\n  \"asunto\": \"Luminaria apagada en la plaza\",\n  \"descripcion\": \"El poste cercano al acceso principal está sin iluminación.\",\n  \"clienteEmail\": \"vecino@example.test\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.environment.set(\"requestId\",pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Notificaciones procesadas — esperar unos segundos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/notifications"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Crear trámite con error controlado",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/requests",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tipoId\": \"{{tipoId}}\",\n  \"asunto\": \"Luminaria apagada en la plaza\",\n  \"descripcion\": \"El poste cercano al acceso principal está sin iluminación.\",\n  \"clienteEmail\": \"error@barriodigital.test\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.environment.set(\"errorRequestId\",pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Colas y DLQ — esperar unos segundos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/queues"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Crear cola válida",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/queues",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"queueName\": \"q.test.barriodigital\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Rechazar cola inválida",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/queues",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"queueName\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Crear exchange de prueba",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/exchanges",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"exchangeName\": \"x.test.barriodigital\",\n  \"type\": \"direct\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Crear binding",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/bindings",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"queueName\": \"q.test.barriodigital\",\n  \"exchangeName\": \"x.test.barriodigital\",\n  \"routingKey\": \"test.send\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Consumidores",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/consumers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Nodos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/nodes"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Estado outbox",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/requests/outbox/status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Detalle persistido",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/requests/{{requestId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Cambiar estado",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/requests/{{requestId}}/estado",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"estado\": \"ADMITIDO\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Quitar binding de prueba",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/bindings",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"queueName\": \"q.test.barriodigital\",\n  \"exchangeName\": \"x.test.barriodigital\",\n  \"routingKey\": \"test.send\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Borrar cola de prueba vacía",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/queues/q.test.barriodigital"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Borrar exchange de prueba",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Demo-Role",
+            "value": "{{demoRole}}"
+          },
+          {
+            "key": "X-Demo-User",
+            "value": "{{demoUser}}"
+          },
+          {
+            "key": "X-Correlation-ID",
+            "value": "{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/rabbitmq/exchanges/x.test.barriodigital"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

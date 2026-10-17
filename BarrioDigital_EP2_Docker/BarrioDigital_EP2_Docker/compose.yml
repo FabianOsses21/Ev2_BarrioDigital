@@ -1,0 +1,154 @@
+name: barriodigital
+
+x-app-env: &app-env
+  AUTH_MODE: entra
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-f402d005-2163-4d89-a6cd-e07c25b973b2}
+  AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:-54bc913a-2f45-4e55-9eae-b30616a9f8d5}
+  AZURE_REQUIRED_SCOPE: ${AZURE_REQUIRED_SCOPE:-OT.Create}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
+  RABBITMQ_ADDRESSES: rabbitmq-1:5672,rabbitmq-2:5672
+  RABBITMQ_USER: ${RABBITMQ_USER:-barriodigital}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Copia .env.example a .env}
+  QUEUE_TTL_MS: ${QUEUE_TTL_MS:-30000}
+  DLQ_TTL_MS: ${DLQ_TTL_MS:-604800000}
+  TZ: America/Santiago
+
+x-app: &app
+  restart: unless-stopped
+  networks: [barriodigital]
+  mem_limit: 768m
+
+services:
+  rabbitmq-1:
+    image: rabbitmq:4.2.9-management
+    hostname: rabbitmq-1
+    restart: unless-stopped
+    environment: &rabbit-env
+      RABBITMQ_NODENAME: rabbit@rabbitmq-1
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Copia .env.example a .env}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-barriodigital}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Copia .env.example a .env}
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    volumes:
+      - rabbitmq1_data:/var/lib/rabbitmq
+      - ./infra/rabbitmq/rabbitmq-1/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks: [barriodigital]
+    healthcheck: &rabbit-health
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 8s
+      retries: 20
+      start_period: 30s
+
+  rabbitmq-2:
+    image: rabbitmq:4.2.9-management
+    hostname: rabbitmq-2
+    restart: unless-stopped
+    environment:
+      <<: *rabbit-env
+      RABBITMQ_NODENAME: rabbit@rabbitmq-2
+    depends_on:
+      rabbitmq-1: {condition: service_healthy}
+    ports: ["127.0.0.1:5673:5672", "127.0.0.1:15673:15672"]
+    volumes:
+      - rabbitmq2_data:/var/lib/rabbitmq
+      - ./infra/rabbitmq/rabbitmq-2/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks: [barriodigital]
+    healthcheck: *rabbit-health
+
+  cluster-check:
+    image: rabbitmq:4.2.9-management
+    hostname: cluster-check
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Copia .env.example a .env}
+    entrypoint: ["/bin/sh", "/check-cluster.sh"]
+    volumes: ["./infra/rabbitmq/check-cluster.sh:/check-cluster.sh:ro"]
+    depends_on:
+      rabbitmq-1: {condition: service_healthy}
+      rabbitmq-2: {condition: service_healthy}
+    networks: [barriodigital]
+    restart: "no"
+
+  catalog:
+    <<: *app
+    build: {context: ./backend, target: catalog}
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:h2:file:/app/data/catalog;DB_CLOSE_ON_EXIT=FALSE
+    volumes: ["catalog_data:/app/data"]
+
+  rabbitadmin:
+    <<: *app
+    build: {context: ./backend, target: rabbitadmin}
+    environment:
+      <<: *app-env
+      RABBITMQ_MANAGEMENT_URLS: http://rabbitmq-1:15672,http://rabbitmq-2:15672
+    depends_on:
+      cluster-check: {condition: service_completed_successfully}
+
+  requests:
+    <<: *app
+    build: {context: ./backend, target: requests}
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:h2:file:/app/data/requests;DB_CLOSE_ON_EXIT=FALSE
+      CATALOG_URL: http://catalog:8082
+    volumes: ["requests_data:/app/data"]
+    depends_on:
+      catalog: {condition: service_healthy}
+      rabbitadmin: {condition: service_healthy}
+
+  notify:
+    <<: *app
+    build: {context: ./backend, target: notify}
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:h2:file:/app/data/notify;DB_CLOSE_ON_EXIT=FALSE
+      DEMO_FAILURE_ENABLED: ${DEMO_FAILURE_ENABLED:-true}
+    volumes: ["notify_data:/app/data"]
+    depends_on:
+      rabbitadmin: {condition: service_healthy}
+
+  bff:
+    <<: *app
+    build: {context: ./backend, target: bff}
+    environment:
+      <<: *app-env
+      CATALOG_URL: http://catalog:8082
+      REQUESTS_URL: http://requests:8083
+      NOTIFY_URL: http://notify:8084
+      RABBITADMIN_URL: http://rabbitadmin:8085
+    depends_on:
+      requests: {condition: service_healthy}
+      notify: {condition: service_healthy}
+
+  api-gateway:
+    build: ./infra/gateway
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      bff: {condition: service_healthy}
+    networks: [barriodigital]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      AUTH_MODE: entra
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-f402d005-2163-4d89-a6cd-e07c25b973b2}
+      AZURE_SPA_CLIENT_ID: ${AZURE_SPA_CLIENT_ID:-d7f096c4-0ef5-4833-8def-e802ffd7314a}
+      AZURE_BACKEND_SCOPE: ${AZURE_BACKEND_SCOPE:-api://54bc913a-2f45-4e55-9eae-b30616a9f8d5/OT.Create}
+    ports: ["127.0.0.1:4200:80"]
+    depends_on:
+      api-gateway: {condition: service_healthy}
+    networks: [barriodigital]
+
+networks:
+  barriodigital: {driver: bridge}
+volumes:
+  rabbitmq1_data:
+  rabbitmq2_data:
+  catalog_data:
+  requests_data:
+  notify_data:
