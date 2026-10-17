@@ -354,13 +354,22 @@ Referencia: [Clustering and Khepri, RabbitMQ 4.2](https://www.rabbitmq.com/docs/
 
 Prueba	Asunto	Descripción	Correo
 ```powershell
-Procesamiento correcto	Luminaria apagada en la plaza	El poste junto al acceso principal no enciende durante la noche.	vecino@example.test
+Procesamiento correcto
+Luminaria apagada en la plaza	
+El poste junto al acceso principal no enciende durante la noche.	
+vecino@example.test
 ```
 ```powershell
-Error y reintentos	Luminaria con falla intermitente	La luminaria se apaga repetidamente y deja el sector sin iluminación.	error@barriodigital.test
+Error y reintentos
+Luminaria con falla intermitente	
+La luminaria se apaga repetidamente y deja el sector sin iluminación.	
+error@barriodigital.test
 ```
 ```powershell
-Procesamiento correcto después del error	Luminaria dañada frente a la sede	La luminaria frente a la sede vecinal permanece apagada.	otrovecino@example.test
+Procesamiento correcto después del error	
+Luminaria dañada frente a la sede	
+La luminaria frente a la sede vecinal permanece apagada.	
+otrovecino@example.test
 ```
 
 
