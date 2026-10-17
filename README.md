@@ -352,12 +352,12 @@ Referencia: [Clustering and Khepri, RabbitMQ 4.2](https://www.rabbitmq.com/docs/
 
 ## 11. Evidencias sugeridas
 
-- Servicios saludables y `cluster-check` con salida 0.
-- Dos nodos presentes en `cluster_status`.
-- Exchanges, colas y DLQ visibles en Management.
-- Trámite creado, publicación confirmada y ACK del consumidor correlacionados.
-- Tres registros de procesamiento para el trámite correcto.
-- Tres intentos fallidos, NACK y mensaje en DLQ con `x-death: rejected`.
-- Inicio de sesión Microsoft y panel con el rol correspondiente.
+Prueba	Asunto	Descripción	Correo
+Procesamiento correcto	Luminaria apagada en la plaza	El poste junto al acceso principal no enciende durante la noche.	vecino@example.test
+Error y reintentos	Luminaria con falla intermitente	La luminaria se apaga repetidamente y deja el sector sin iluminación.	error@barriodigital.test
+Procesamiento correcto después del error	Luminaria dañada frente a la sede	La luminaria frente a la sede vecinal permanece apagada.	otrovecino@example.test
 
-Los resultados descritos son los esperados para las pruebas. Captura la evidencia de tu propia ejecución.
+
+Selecciona un tipo de trámite activo que corresponda a los ejemplos.
+Antes de comenzar, abre los registros:
+docker compose logs -f --tail=10 requests notify
