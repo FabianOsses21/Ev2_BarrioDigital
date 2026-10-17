@@ -48,7 +48,7 @@ services:
       <<: *rabbit-env
       RABBITMQ_NODENAME: rabbit@rabbitmq-2
     depends_on:
-      rabbitmq-1: {condition: service_healthy}
+      rabbitmq-1: {condition: service_started}
     ports: ["127.0.0.1:5673:5672", "127.0.0.1:15673:15672"]
     volumes:
       - rabbitmq2_data:/var/lib/rabbitmq
