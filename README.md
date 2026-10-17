@@ -41,15 +41,19 @@ Los servicios deben quedar ejecutándose y saludables cuando tienen comprobació
 
 Abre <http://localhost:4200> y entra con una cuenta de demostración. La construcción puede finalizar antes de que todos los servicios estén listos; espera a que termine el arranque.
 
-### Volver a iniciar en demo otro día
+### Iniciar sin modo DEMO (EntraID)
 
-Abre Docker Desktop y ejecuta:
+Abre Docker Desktop y desde la carpeta donde está compose.yml, ejecuta:
 
 ```powershell
-docker compose -f compose.yml -f compose.demo.yml up -d
+docker compose up -d
 ```
 
 Agrega `--build` cuando hayas modificado código y necesites reconstruir las imágenes.
+
+```powershell
+docker compose up -d --build
+```
 
 ## 3. Abrir RabbitMQ y verificar el clúster
 
