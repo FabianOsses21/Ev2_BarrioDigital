@@ -1,6 +1,6 @@
 package cl.barriodigital.requests;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.*;
 import org.springframework.amqp.AmqpException;
@@ -40,7 +40,7 @@ class OutboxPublisherTest {
       correlation.getFuture().complete(new CorrelationData.Confirm(true,null));return null;
     }).when(rabbit).send(anyString(),anyString(),any(Message.class),any(CorrelationData.class));
     publisher.dispatch();
-    assertThat(event.sentAt).isNull();assertThat(event.nextAttempt).isAfter(Instant.now());verify(repo).save(event);
+    assertThat(event.sentAt).isNull();assertThat(event.nextAttempt).isAfter(LocalDateTime.now());verify(repo).save(event);
   }
 
   @Test void brokerFailurePreservesEventForRetry() {
@@ -48,6 +48,6 @@ class OutboxPublisherTest {
       .send(anyString(),anyString(),any(Message.class),any(CorrelationData.class));
     publisher.dispatch();
     assertThat(event.sentAt).isNull();assertThat(event.attempts).isEqualTo(1);
-    assertThat(event.nextAttempt).isAfter(Instant.now());verify(repo).save(event);
+    assertThat(event.nextAttempt).isAfter(LocalDateTime.now());verify(repo).save(event);
   }
 }
