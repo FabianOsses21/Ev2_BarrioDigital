@@ -1,5 +1,6 @@
 package cl.barriodigital.notify;
 import cl.barriodigital.common.CommandEvent;
+import cl.barriodigital.common.MessagingNames;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,6 +10,6 @@ class InboxIntegrationTest {
   @Autowired NotificationProcessor processor;@Autowired ReceiptRepository repo;
   @BeforeEach void clean(){repo.deleteAll();}
   CommandEvent event(String email){return new CommandEvent("event-1","corr-1","creado","2026-10-17T00:00:00Z","request-1","owner-1",email,"Prueba","INGRESADO");}
-  @Test void redeliveryDoesNotRepeatEffect(){assertThat(processor.process(event("ok@example.test"),"q.cmd.email")).isTrue();assertThat(processor.process(event("ok@example.test"),"q.cmd.email")).isFalse();assertThat(repo.count()).isEqualTo(1);}
-  @Test void controlledEmailFailureDoesNotRecordSuccess(){assertThatThrownBy(()->processor.process(event("error@barriodigital.test"),"q.cmd.email")).isInstanceOf(IllegalStateException.class);assertThat(repo.count()).isZero();}
+  @Test void redeliveryDoesNotRepeatEffect(){assertThat(processor.process(event("ok@example.test"),MessagingNames.Q_EMAIL)).isTrue();assertThat(processor.process(event("ok@example.test"),MessagingNames.Q_EMAIL)).isFalse();assertThat(repo.count()).isEqualTo(1);}
+  @Test void controlledEmailFailureDoesNotRecordSuccess(){assertThatThrownBy(()->processor.process(event("error@barriodigital.test"),MessagingNames.Q_EMAIL)).isInstanceOf(IllegalStateException.class);assertThat(repo.count()).isZero();}
 }

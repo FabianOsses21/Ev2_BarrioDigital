@@ -1,5 +1,6 @@
 package cl.barriodigital.requests;
 import cl.barriodigital.common.CommandEvent;
+import cl.barriodigital.common.MessagingNames;
 import cl.barriodigital.requests.entity.Tramite;
 import java.time.Instant;
 import java.util.UUID;
@@ -12,11 +13,11 @@ public class OutboxWriter {
   public OutboxWriter(OutboxRepository repo,ObjectMapper mapper){this.repo=repo;this.mapper=mapper;}
   public void enqueue(Tramite t,String type) {
     String correlation=MDC.get("correlationId"); if(correlation==null)correlation=UUID.randomUUID().toString();
-    String[] keys={"email.send","tramite.audit."+type,"tramite.estado."+type};
+    String[] keys={MessagingNames.RK_EMAIL,MessagingNames.RK_AUDIT+type,MessagingNames.RK_TRACKING+type};
     for(int i=0;i<keys.length;i++) {
       String id=UUID.randomUUID().toString();
       CommandEvent event=new CommandEvent(id,correlation,type,Instant.now().toString(),t.getId(),t.getPropietarioId(),t.getClienteEmail(),t.getAsunto(),t.getEstado().name());
-      repo.save(new OutboxMessage(id,i==0?"cmd.direct":"cmd.topic",keys[i],correlation,mapper.writeValueAsString(event)));
+      repo.save(new OutboxMessage(id,i==0?MessagingNames.EX_DIRECT:MessagingNames.EX_TOPIC,keys[i],correlation,mapper.writeValueAsString(event)));
     }
   }
 }
