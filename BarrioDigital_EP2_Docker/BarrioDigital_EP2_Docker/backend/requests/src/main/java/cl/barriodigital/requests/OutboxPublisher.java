@@ -21,7 +21,12 @@ public class OutboxPublisher {
   }
   @Scheduled(fixedDelayString="${app.outbox.delay-ms:2000}")
   public void dispatch() {
-    for(OutboxMessage event:repo.findTop20BySentAtIsNullAndNextAttemptLessThanEqualOrderByCreatedAtAsc(Instant.now())) {
+    // El retraso de reintentos se evalúa en Java: los Instant se guardan como
+    // TIMESTAMP en wall-clock UTC y compararlos en SQL contra Instant.now()
+    // desfasa el filtro según la zona horaria de la sesión.
+    Instant now=Instant.now();
+    for(OutboxMessage event:repo.findTop20BySentAtIsNullOrderByCreatedAtAsc()) {
+      if(event.nextAttempt!=null&&event.nextAttempt.isAfter(now))continue;
       event.attempts++;
       try {
         MessageProperties p=new MessageProperties(); p.setContentType("application/json");
