@@ -1,6 +1,6 @@
 package cl.barriodigital.requests;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.*;
 import org.springframework.amqp.core.*;
@@ -21,10 +21,9 @@ public class OutboxPublisher {
   }
   @Scheduled(fixedDelayString="${app.outbox.delay-ms:2000}")
   public void dispatch() {
-    // El retraso de reintentos se evalúa en Java: los Instant se guardan como
-    // TIMESTAMP en wall-clock UTC y compararlos en SQL contra Instant.now()
-    // desfasa el filtro según la zona horaria de la sesión.
-    Instant now=Instant.now();
+    // El retraso de reintentos se evalúa en Java con LocalDateTime: TIMESTAMP
+    // guarda y lee wall-clock de forma simétrica, sin desfase de zona horaria.
+    LocalDateTime now=LocalDateTime.now();
     for(OutboxMessage event:repo.findTop20BySentAtIsNullOrderByCreatedAtAsc()) {
       if(event.nextAttempt!=null&&event.nextAttempt.isAfter(now))continue;
       event.attempts++;
@@ -36,17 +35,17 @@ public class OutboxPublisher {
         rabbit.send(event.exchangeName,event.routingKey,new Message(event.payload.getBytes(StandardCharsets.UTF_8),p),correlation);
         var confirm=correlation.getFuture().get(5,TimeUnit.SECONDS);
         if(!confirm.isAck()||correlation.getReturned()!=null)throw new IllegalStateException("Publicación no confirmada o sin ruta");
-        event.sentAt=Instant.now();event.lastError=null;
+        event.sentAt=LocalDateTime.now();event.lastError=null;
         log.info("Confirmación de publicación ACK eventId={}",event.id);
       } catch(Exception e) {
         if(e instanceof InterruptedException)Thread.currentThread().interrupt();
         event.lastError=e.getClass().getSimpleName();
-        event.nextAttempt=Instant.now().plusSeconds(Math.min(60,1L<<Math.min(event.attempts,6)));
+        event.nextAttempt=LocalDateTime.now().plusSeconds(Math.min(60,1L<<Math.min(event.attempts,6)));
         log.warn("Publicación pendiente eventId={} intento={} próximo={} motivo={}",event.id,event.attempts,event.nextAttempt,event.lastError);
       }
       repo.save(event);
     }
   }
   @Scheduled(fixedDelay=3600000)
-  public void retention(){tx.executeWithoutResult(s->repo.deleteBySentAtBefore(Instant.now().minusSeconds(604800)));}
+  public void retention(){tx.executeWithoutResult(s->repo.deleteBySentAtBefore(LocalDateTime.now().minusSeconds(604800)));}
 }

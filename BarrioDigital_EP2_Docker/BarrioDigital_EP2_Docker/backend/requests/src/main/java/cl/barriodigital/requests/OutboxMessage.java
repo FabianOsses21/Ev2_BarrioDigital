@@ -1,6 +1,6 @@
 package cl.barriodigital.requests;
 import jakarta.persistence.*;
-import java.time.Instant;
+import java.time.LocalDateTime;
 @Entity @Table(name="outbox_messages")
 public class OutboxMessage {
   @Id @Column(length=64) public String id;
@@ -9,13 +9,13 @@ public class OutboxMessage {
   @Column(nullable=false,length=100) public String correlationId;
   @Lob @Column(nullable=false) public String payload;
   public int attempts;
-  public Instant createdAt;
-  public Instant nextAttempt;
-  public Instant sentAt;
+  public LocalDateTime createdAt;
+  public LocalDateTime nextAttempt;
+  public LocalDateTime sentAt;
   @Column(length=500) public String lastError;
   protected OutboxMessage(){}
   public OutboxMessage(String id,String exchange,String key,String correlation,String payload) {
     this.id=id;exchangeName=exchange;routingKey=key;correlationId=correlation;this.payload=payload;
-    createdAt=Instant.now();nextAttempt=createdAt;
+    createdAt=LocalDateTime.now();nextAttempt=createdAt;
   }
 }
