@@ -1,5 +1,7 @@
-# Plantilla para la siguiente etapa. No se utiliza en el arranque normal.
-# Crear previamente tablas en Oracle y configurar TLS/wallet según la cuenta.
+# Override para la etapa Oracle. Uso:
+#   docker compose -f compose.yml -f compose.cloud.yml -f compose.oracle.yml up -d
+# Requiere las variables ORACLE_* en .env (ver .env.example) y las tablas
+# creadas previamente con infra/oracle/schema.sql en cada esquema.
 services:
   catalog:
     environment:
@@ -19,3 +21,11 @@ services:
       ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
       ORACLE_USER: ${ORACLE_NOTIFY_USER:?Configura el esquema}
       ORACLE_PASSWORD: ${ORACLE_NOTIFY_PASSWORD:?Configura la contraseña}
+
+# Si la cuenta Oracle exige wallet mTLS (Autonomous Database con
+# "mTLS required"), descarga el wallet en el EC2 y descomenta por
+# servicio:
+#   catalog:
+#     volumes: ["/home/ubuntu/wallet_bd:/app/wallet:ro"]
+#     environment:
+#       ORACLE_JDBC_URL: jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=/app/wallet
