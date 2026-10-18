@@ -1,31 +1,64 @@
-# Override para la etapa Oracle. Uso:
+# Override Oracle XE sobre el mismo EC2. Uso:
 #   docker compose -f compose.yml -f compose.cloud.yml -f compose.oracle.yml up -d
-# Requiere las variables ORACLE_* en .env (ver .env.example) y las tablas
-# creadas previamente con infra/oracle/schema.sql en cada esquema.
+# Requiere ORACLE_ADMIN_PASSWORD y ORACLE_*_PASSWORD en .env.
+# El primer arranque crea la base (imagen faststart, igual tarda unos
+# minutos); el initdb crea usuarios y ejecuta el DDL de infra/oracle/.
+# ORACLE_JDBC_URL puede sobrescribirse para apuntar a una base externa.
+x-oracle-env: &oracle-env
+  ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:-jdbc:oracle:thin:@oracle-xe:1521/FREEPDB1}
+
 services:
+  oracle-xe:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    hostname: oracle-xe
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_ADMIN_PASSWORD:?Configura la clave SYS}
+      ORACLE_DATABASE: BARRIODB
+      ORACLE_CATALOG_PASSWORD: ${ORACLE_CATALOG_PASSWORD:?Configura el esquema}
+      ORACLE_REQUESTS_PASSWORD: ${ORACLE_REQUESTS_PASSWORD:?Configura el esquema}
+      ORACLE_NOTIFY_PASSWORD: ${ORACLE_NOTIFY_PASSWORD:?Configura el esquema}
+      TZ: America/Santiago
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./infra/oracle/initdb:/container-entrypoint-initdb.d:ro
+      - ./infra/oracle/schema_catalog.sql:/opt/oracle/schema/schema_catalog.sql:ro
+      - ./infra/oracle/schema_requests.sql:/opt/oracle/schema/schema_requests.sql:ro
+      - ./infra/oracle/schema_notify.sql:/opt/oracle/schema/schema_notify.sql:ro
+    networks: [barriodigital]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
   catalog:
     environment:
+      <<: *oracle-env
       SPRING_PROFILES_ACTIVE: oracle
-      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
-      ORACLE_USER: ${ORACLE_CATALOG_USER:?Configura el esquema}
-      ORACLE_PASSWORD: ${ORACLE_CATALOG_PASSWORD:?Configura la contraseña}
+      ORACLE_USER: ${ORACLE_CATALOG_USER:-bd_catalog}
+      ORACLE_PASSWORD: ${ORACLE_CATALOG_PASSWORD:?Configura el esquema}
+    depends_on:
+      oracle-xe: {condition: service_healthy}
+
   requests:
     environment:
+      <<: *oracle-env
       SPRING_PROFILES_ACTIVE: oracle
-      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
-      ORACLE_USER: ${ORACLE_REQUESTS_USER:?Configura el esquema}
-      ORACLE_PASSWORD: ${ORACLE_REQUESTS_PASSWORD:?Configura la contraseña}
+      ORACLE_USER: ${ORACLE_REQUESTS_USER:-bd_requests}
+      ORACLE_PASSWORD: ${ORACLE_REQUESTS_PASSWORD:?Configura el esquema}
+    depends_on:
+      oracle-xe: {condition: service_healthy}
+
   notify:
     environment:
+      <<: *oracle-env
       SPRING_PROFILES_ACTIVE: oracle
-      ORACLE_JDBC_URL: ${ORACLE_JDBC_URL:?Configura Oracle}
-      ORACLE_USER: ${ORACLE_NOTIFY_USER:?Configura el esquema}
-      ORACLE_PASSWORD: ${ORACLE_NOTIFY_PASSWORD:?Configura la contraseña}
+      ORACLE_USER: ${ORACLE_NOTIFY_USER:-bd_notify}
+      ORACLE_PASSWORD: ${ORACLE_NOTIFY_PASSWORD:?Configura el esquema}
+    depends_on:
+      oracle-xe: {condition: service_healthy}
 
-# Si la cuenta Oracle exige wallet mTLS (Autonomous Database con
-# "mTLS required"), descarga el wallet en el EC2 y descomenta por
-# servicio:
-#   catalog:
-#     volumes: ["/home/ubuntu/wallet_bd:/app/wallet:ro"]
-#     environment:
-#       ORACLE_JDBC_URL: jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=/app/wallet
+volumes:
+  oracle_data:

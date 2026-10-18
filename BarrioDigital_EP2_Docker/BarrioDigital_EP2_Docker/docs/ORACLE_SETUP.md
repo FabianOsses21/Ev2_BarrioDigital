@@ -1,100 +1,86 @@
-# Conexión a Oracle Cloud (Autonomous Database)
+# Base de datos Oracle en AWS (Oracle XE en el EC2)
 
-Guía para pasar de H2 a Oracle Autonomous Database manteniendo el
-mismo despliegue en EC2. Los microservicios de datos (`catalog`,
-`requests`, `notify`) ya incluyen el driver `ojdbc11` y el perfil
-`oracle` (`ddl-auto=validate`): solo faltan la base, los esquemas y
-las credenciales.
+Guía para pasar de H2 a Oracle manteniendo el despliegue en el EC2.
+Se usa la imagen `gvenzl/oracle-xe:21-slim-faststart` como un servicio
+más del compose: misma red Docker, mismos volúmenes persistentes y sin
+puertos nuevos expuestos al exterior.
 
-## 1. Crear la Autonomous Database (OCI Console)
+Los microservicios de datos (`catalog`, `requests`, `notify`) ya
+incluyen el driver `ojdbc11` y el perfil `oracle`
+(`ddl-auto=validate`): solo faltan las contraseñas en `.env`.
 
-1. <https://cloud.oracle.com> → **Oracle Database → Autonomous Database → Create**.
-2. Compartment: el de tu cuenta. **Display name:** `barriodigital`.
-3. Workload: **Transaction Processing**. Deployment: **Serverless**.
-4. ECPU: 2 (mínimo free-tier), Storage 20 GB, **Always Free** si aplica.
-5. Contraseña de `ADMIN` (se usará solo para crear los usuarios).
-6. Network access: **Secure access from allowed IPs and VCNs** →
-   agregar la Elastic IP del EC2 (`54.158.23.72/32`).
-   Esa opción permite TLS simple **sin wallet** y es la más simple
-   para el laboratorio. Si prefieres mTLS, ver §4.
-7. Create → esperar a que quede **Available** (~2 min).
+## 1. Variables en `.env` del EC2
 
-## 2. Crear los usuarios/esquemas
+```bash
+ORACLE_ADMIN_PASSWORD=<clave-sys-fuerte>
+ORACLE_CATALOG_PASSWORD=<clave-1>
+ORACLE_REQUESTS_PASSWORD=<clave-2>
+ORACLE_NOTIFY_PASSWORD=<clave-3>
+```
 
-En la consola de la ADB → **Database Actions → SQL** (login `ADMIN`):
+`ORACLE_ADMIN_PASSWORD` es la clave de `SYS`/`SYSTEM` de la XE. Las
+otras tres son las claves de los usuarios `bd_catalog`, `bd_requests`
+y `bd_notify`, que el script de init crea automáticamente.
+
+## 2. Levantar con el perfil Oracle
+
+```bash
+cd ~/Ev2_BarrioDigital/BarrioDigital_EP2_Docker/BarrioDigital_EP2_Docker
+docker compose -f compose.yml -f compose.cloud.yml -f compose.oracle.yml up -d
+docker compose ps -a
+```
+
+El primer arranque tarda unos minutos: la imagen faststart desempaqueta
+la base pre-creada, luego `01_setup.sh` (en
+`/container-entrypoint-initdb.d`) crea los tres usuarios y ejecuta el
+DDL de `infra/oracle/schema_*.sql` por esquema. `oracle-xe` debe quedar
+`healthy` antes de que arranquen catalog/requests/notify (depends_on).
+
+Seguimiento:
+
+```bash
+docker compose logs -f oracle-xe          # "DATABASE IS READY TO USE!"
+docker compose logs -f catalog requests   # "Started ...Application" sin
+                                          # errores de Schema-validation
+```
+
+## 3. Verificación
+
+```bash
+docker compose exec oracle-xe sqlplus -s \
+  bd_requests/${ORACLE_REQUESTS_PASSWORD}@//localhost:1521/FREEPDB1 \
+  <<< "select table_name from user_tables;"
+```
+
+Debe listar `TRAMITES_PEDIDOS`, `ITEMS_PEDIDO`, `TRAMITE_WRITE_LOCK`,
+`OUTBOX_MESSAGES`. El catálogo se siembra solo al primer arranque
+(`tipos_tramite` queda con 3 tipos). Después, repetir las pruebas HTTP
+de la guía principal: los trámites y recibos persisten ahora en Oracle.
+
+Para evidencia docente, dentro del mismo sqlplus:
 
 ```sql
-CREATE USER bd_catalog  IDENTIFIED BY "<clave-fuerte-1>";
-CREATE USER bd_requests IDENTIFIED BY "<clave-fuerte-2>";
-CREATE USER bd_notify   IDENTIFIED BY "<clave-fuerte-3>";
-GRANT CONNECT, RESOURCE TO bd_catalog;
-GRANT CONNECT, RESOURCE TO bd_requests;
-GRANT CONNECT, RESOURCE TO bd_notify;
-GRANT UNLIMITED TABLESPACE TO bd_catalog;
-GRANT UNLIMITED TABLESPACE TO bd_requests;
-GRANT UNLIMITED TABLESPACE TO bd_notify;
+select table_name from user_tables;
+select count(*) from outbox_messages;
 ```
 
-Luego, conectado como **cada usuario**, ejecutar el bloque
-correspondiente de `infra/oracle/schema.sql` (catalog, requests o
-notify). Las credenciales de Database Actions permiten cambiar de
-usuario con la lista desplegable, o conectar por SQLcl/SQL Developer.
+y en `bd_notify`: `select count(*) from notification_receipts;`
+tras crear un trámite.
 
-## 3. Configurar `.env` en el EC2 y activar el perfil
+## 4. Notas operativas
 
-El `ORACLE_JDBC_URL` sale de la consola: ADB → **Database connection**
-→ copiar un connection string TLS del tipo:
-
-```
-jdbc:oracle:thin:@dbname_high?TNS_ADMIN=/app/wallet   (mTLS)
-jdbc:oracle:thin:@(description= ... )                (TLS one-way, copiar el string completo)
-```
-
-Con "allowed IPs" (sin wallet), el JDBC URL es el descriptor largo
-TLS que entrega la consola — va entre comillas en `.env`.
-
-`.env`:
-
-```bash
-ORACLE_JDBC_URL="jdbc:oracle:thin:@(description=...)"
-ORACLE_CATALOG_USER=bd_catalog
-ORACLE_CATALOG_PASSWORD=<clave-fuerte-1>
-ORACLE_REQUESTS_USER=bd_requests
-ORACLE_REQUESTS_PASSWORD=<clave-fuerte-2>
-ORACLE_NOTIFY_USER=bd_notify
-ORACLE_NOTIFY_PASSWORD=<clave-fuerte-3>
-```
-
-Recrear los tres servicios de datos:
-
-```bash
-docker compose -f compose.yml -f compose.cloud.yml -f compose.oracle.yml up -d
-docker compose logs -f catalog requests notify
-```
-
-Señales de éxito: `Started CatalogApplication`/`RequestsApplication`/
-`NotifyApplication` sin errores de `Schema-validation`. El catálogo
-se siembra solo si `tipos_tramite` está vacía.
-
-Verificación funcional: repetir las pruebas HTTP (crear trámite,
-consumo de colas, DLQ) — los datos ahora persisten en Oracle. Revisar
-en Database Actions que aparecen filas en `tramites_pedidos`,
-`outbox_messages` y `notification_receipts`.
-
-## 4. Variante mTLS (wallet)
-
-Si la ADB exige wallet:
-
-1. ADB → **Database connection → Download wallet** (crea contraseña
-   del wallet; es del wallet, no de ADMIN).
-2. Subir el ZIP al EC2 y descomprimir, p.ej. `~/wallet_bd/`.
-3. En `compose.oracle.yml` descomentar el bloque `volumes` comentado
-   por servicio y usar `ORACLE_JDBC_URL=jdbc:oracle:thin:@<alias>_high?TNS_ADMIN=/app/wallet`
-   (el alias es uno de los servicios del `tnsnames.ora` del wallet).
-4. Abrir el Security Group de la ADB o la regla egress — el wallet
-   define el endpoint; con mTLS la IP allowlist no aplica igual.
-
-## 5. Rollback a H2
-
-Basta omitir `-f compose.oracle.yml` en el `up`: los datos H2 en los
-volúmenes Docker se conservan y cada servicio vuelve a su archivo.
+- **RAM:** la XE usa ~2 GB. Junto a los 5 servicios Java (768 MB límite
+  c/u) el total puede acercarse al límite de la `t2.large`; vigilar
+  `free -m`. Si falta memoria, crear swap de 2 GB:
+  `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile &&
+   sudo mkswap /swapfile && sudo swapon /swapfile`.
+- **Puertos:** la XE no expone 1521 al exterior; solo la red Docker la
+  ve. Para conectar un cliente SQL desde tu PC, túnel SSH:
+  `ssh -L 1521:localhost:1521 ubuntu@54.158.23.72` y descomentar
+  `ports: ["127.0.0.1:1521:1521"]` en el servicio.
+- **Rollback a H2:** omitir `-f compose.oracle.yml` en el `up`; los
+  volúmenes H2 se conservan.
+- **Oracle externa:** para apuntar a una Autonomous DB u otra Oracle,
+  definir `ORACLE_JDBC_URL` en `.env` (override del default interno)
+  y ejecutar el DDL de `infra/oracle/schema_*.sql` en cada esquema.
+  El servicio `oracle-xe` puede omitirse comentando su bloque.

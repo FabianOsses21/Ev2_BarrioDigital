@@ -1,23 +1,4 @@
--- BarrioDigital — DDL Oracle para cada esquema.
--- Ejecutar cada bloque conectado como el usuario dueño del esquema.
--- Los nombres de columna siguen la estrategia física de Spring Boot
--- (camelCase -> snake_case), requerido por spring.jpa.hibernate.ddl-auto=validate.
-
--- ============ ESQUEMA CATALOG (ORACLE_CATALOG_USER) ============
-
-CREATE TABLE tipos_tramite (
-    id           VARCHAR2(64 CHAR)  NOT NULL,
-    nombre       VARCHAR2(120 CHAR) NOT NULL,
-    descripcion  VARCHAR2(500 CHAR) NOT NULL,
-    cupo_diario  NUMBER(10,0)       NOT NULL,
-    activo       NUMBER(1,0)        NOT NULL,
-    CONSTRAINT pk_tipos_tramite PRIMARY KEY (id)
-);
-
--- El catálogo se siembra solo al primer arranque (CommandLineRunner
--- inserta los 3 tipos si la tabla está vacía). No agregar seeds aquí.
-
--- ============ ESQUEMA REQUESTS (ORACLE_REQUESTS_USER) ============
+-- Esquema REQUESTS (bd_requests).
 
 CREATE TABLE tramites_pedidos (
     id                  VARCHAR2(64 CHAR)  NOT NULL,
@@ -72,22 +53,3 @@ CREATE TABLE outbox_messages (
 
 CREATE INDEX idx_outbox_pendientes
     ON outbox_messages (sent_at, next_attempt);
-
--- ============ ESQUEMA NOTIFY (ORACLE_NOTIFY_USER) ============
-
-CREATE TABLE notification_receipts (
-    id             VARCHAR2(150 CHAR) NOT NULL,
-    event_id       VARCHAR2(64 CHAR),
-    request_id     VARCHAR2(64 CHAR),
-    correlation_id VARCHAR2(100 CHAR),
-    queue_name     VARCHAR2(80 CHAR),
-    recipient      VARCHAR2(150 CHAR),
-    result         VARCHAR2(40 CHAR),
-    processed_at   TIMESTAMP,
-    CONSTRAINT pk_notification_receipts PRIMARY KEY (id)
-);
-
--- Nota: si ddl-auto=validate rechaza las columnas TIMESTAMP de los
--- campos Instant (created_at, next_attempt, sent_at, processed_at),
--- cambiarlas a TIMESTAMP WITH TIME ZONE según el storage esperado
--- por la versión de Hibernate en uso.
