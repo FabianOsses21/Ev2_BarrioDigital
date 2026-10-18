@@ -1,0 +1,13 @@
+# Override para el EC2: publica los puertos que en local van a 127.0.0.1.
+# Uso: docker compose -f compose.yml -f compose.cloud.yml up -d
+# (con -f compose.oracle.yml además si el perfil Oracle está activo)
+services:
+  api-gateway:
+    ports: !override ["8080:8080"]
+  frontend:
+    ports: !override ["4200:80"]
+  rabbitmq-1:
+    ports: !override ["15672:15672"]
+  rabbitmq-2:
+    ports: !override ["15673:15672"]
+# AMQP (5672/5673) se mantiene solo en la red Docker interna.
