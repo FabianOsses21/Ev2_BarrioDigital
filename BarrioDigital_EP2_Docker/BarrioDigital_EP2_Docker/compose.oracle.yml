@@ -46,6 +46,9 @@ services:
     environment:
       <<: *oracle-env
       SPRING_PROFILES_ACTIVE: oracle
+      # Instant del outbox se guarda en wall-clock UTC; con TZ=UTC el
+      # bind de Instant.now() también queda en UTC y el <= del scheduler matchea.
+      TZ: UTC
       ORACLE_USER: ${ORACLE_REQUESTS_USER:-bd_requests}
       ORACLE_PASSWORD: ${ORACLE_REQUESTS_PASSWORD:?Configura el esquema}
     depends_on:
