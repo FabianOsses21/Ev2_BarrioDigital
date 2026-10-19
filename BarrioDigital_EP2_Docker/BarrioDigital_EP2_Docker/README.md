@@ -106,3 +106,140 @@ Las pruebas de Maven usan H2 y dobles de RabbitMQ; no requieren un broker. La pr
 - La eliminación del catálogo es una desactivación para conservar el historial de trámites. Los trámites solo se editan o eliminan en `INGRESADO`.
 - La migración de datos H2 antiguos no se ejecuta: este proyecto comienza con un catálogo semilla y sin trámites ficticios.
 - El gateway Docker es un proxy local. No configura ni despliega recursos en tu cuenta AWS. BFF y servicios validan JWT; el authorizer del AWS HTTP API se configura en la etapa de despliegue.
+
+## Referencia de arquitectura y mensajería
+
+Material de apoyo para entender y defender el diseño. Describe lo que
+existe en el código y dónde encontrarlo — la explicación de cada
+concepto corre por cuenta del presentador.
+
+### Arquitectura general
+
+```mermaid
+flowchart LR
+  U[Usuario] -->|HTTPS| Caddy[Caddy :443]
+  Caddy --> FE[Frontend Angular :4200]
+  FE -->|Bearer JWT| APIGW[AWS API Gateway<br/>authorizer Entra v2.0]
+  APIGW --> NG[Nginx gateway :8080]
+  NG --> BFF
+  BFF --> CAT[catalog :8082]
+  BFF --> REQ[requests :8083]
+  BFF --> NOT[notify :8084]
+  BFF --> RA[rabbitadmin :8085]
+  REQ -->|publisher confirm| MQ[(RabbitMQ<br/>rabbitmq-1 + rabbitmq-2)]
+  NOT -->|consume| MQ
+  RA -->|AmqpAdmin + Management API| MQ
+  CAT --> DB1[(bd_catalog)]
+  REQ --> DB2[(bd_requests)]
+  NOT --> DB3[(bd_notify)]
+  DB1 & DB2 & DB3 -.->|misma instancia| XE[(Oracle XE<br/>FREEPDB1)]
+```
+
+### Topología de mensajería
+
+Definida en `backend/common/.../MessagingConfig.java` (beans por caso
+de uso) con nombres centralizados en `MessagingNames.java`.
+
+```mermaid
+flowchart LR
+  P[OutboxPublisher<br/>requests] -->|email.send| ED{{"cmd.direct (direct)"}}
+  P -->|"tramite.audit.&lt;evento&gt;"| ET{{"cmd.topic (topic)"}}
+  P -->|"tramite.estado.&lt;evento&gt;"| ET
+  ED -->|"binding: email.send"| Q1[q.cmd.email]
+  ET -->|"binding: tramite.audit.#"| Q2[q.cmd.2]
+  ET -->|"binding: tramite.estado.#"| Q3[q.cmd.3]
+  Q1 -->|NACK o TTL| DX{{"cmd.dead.dlx (direct)"}}
+  Q2 -->|NACK o TTL| DX
+  Q3 -->|NACK o TTL| DX
+  DX -->|email.dead| D1[q.cmd.email.dlq]
+  DX -->|cmd.2.dead| D2[q.cmd.2.dlq]
+  DX -->|cmd.3.dead| D3[q.cmd.3.dlq]
+  Q1 --> EC[EmailConsumer]
+  Q2 --> AC[AuditConsumer]
+  Q3 --> TC[TrackingConsumer]
+```
+
+| Elemento | Valor |
+|---|---|
+| Colas principales | `q.cmd.email`, `q.cmd.2`, `q.cmd.3` — clásicas, durables, TTL 30 s |
+| DLQ | `*.dlq` — durables, TTL 7 días, maxLength 10.000 |
+| Exchanges | `cmd.direct` (clave exacta), `cmd.topic` (patrón `#`), `cmd.dead.dlx` |
+| Dead-letter | argumentos `x-dead-letter-exchange` + `x-dead-letter-routing-key` por cola |
+
+### Recorrido de un mensaje
+
+```mermaid
+sequenceDiagram
+  participant C as Cliente (POST /api/requests)
+  participant S as TramiteService
+  participant OB as outbox_messages
+  participant P as OutboxPublisher
+  participant MQ as RabbitMQ
+  participant K as Consumidor (notify)
+  C->>S: crea trámite → HTTP 201
+  S->>OB: trámite + 3 eventos (misma transacción)
+  loop scheduler cada 2 s
+    P->>OB: pendientes (sent_at IS NULL)
+    P->>MQ: send(mandatory, correlationData)
+    MQ-->>P: publisher confirm ACK
+    P->>OB: sent_at = ahora
+  end
+  MQ->>K: delivery (manual ack, prefetch=1)
+  K->>K: procesa + deduplica por eventId|queue
+  alt éxito
+    K->>MQ: basicAck → recibo en notification_receipts
+  else error recuperable
+    K->>K: reintenta ×3 (backoff 1 s, 2 s)
+  else no recuperable o agotado
+    K->>MQ: basicNack(requeue=false) → DLQ vía cmd.dead.dlx
+  end
+```
+
+Archivos: productor `requests/.../OutboxWriter.java` +
+`OutboxPublisher.java`; consumidores `notify/.../consumer/*.java` con
+lógica compartida en `CommandMessageHandler.java` (ACK/NACK manual,
+reintentos, decisión recuperable vs no recuperable).
+
+### Infraestructura
+
+- Dos nodos `rabbitmq-1`/`rabbitmq-2` en clúster por
+  `RABBITMQ_ERLANG_COOKIE` compartida; verificación puntual con el
+  servicio `cluster-check` y `rabbitmqctl cluster_status`.
+- Las colas son **clásicas**: el clúster permite reconexión entre
+  nodos, no replicación de colas (sin quorum queues). Si cae el nodo
+  propietario de una cola, queda indisponible hasta su retorno; los
+  eventos no confirmados permanecen en el outbox.
+- Compose local (`compose.yml`), publicación cloud
+  (`compose.cloud.yml`), base de datos (`compose.oracle.yml`) y demo
+  (`compose.demo.yml`) son overrides separados.
+
+### Administración implementada
+
+`rabbitadmin` (`/api/rabbitmq/*`, rol ADMIN): `POST/DELETE /queues`,
+`POST/DELETE /exchanges`, `POST/DELETE /bindings`,
+`POST /queues/{name}/purge?confirm=true` y consultas de monitoreo
+`GET /queues|consumers|nodes|overview` vía Management HTTP API.
+La lógica AMQP vive en `RabbitAdminService`; la validación restringe
+los nombres al espacio `q.test.*` / `x.test.*` con DTOs anotados.
+
+### Métricas, logs y control de crecimiento
+
+- Management UI (`:15672`, `:15673`): mensajes Ready/Unacked,
+  consumidores por cola, contadores de DLQ, `x-death` en cabeceras.
+- Cada nodo expone Prometheus en `:15692` (listener activo; el stack
+  no incluye un servidor Prometheus recolectándolo).
+- Logs por evento: `Publicando`, `Confirmación de publicación ACK`,
+  `Mensaje recibido`, `Procesamiento exitoso`, `ACK enviado`,
+  `NACK enviado requeue=false` — trazables por `eventId` y
+  `correlationId`.
+- Control de crecimiento: TTL 30 s en colas principales (expiran a la
+  DLQ con motivo `expired`), TTL 7 días + `x-max-length` 10.000 en DLQ,
+  y el job `OutboxPublisher.retention()` borra publicaciones enviadas
+  con más de 7 días cada hora.
+
+### Lo que NO está implementado
+
+Quórum/mirror queues, federación o shovel, vhosts adicionales,
+políticas `x-policy` a nivel de broker (los límites son argumentos por
+cola), scraping de Prometheus, envío real de correo (se persiste como
+`EMAIL_SIMULADO`) y réplicas del dispatcher de outbox.
